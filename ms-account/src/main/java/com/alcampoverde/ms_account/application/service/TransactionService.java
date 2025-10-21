@@ -1,0 +1,101 @@
+package com.alcampoverde.ms_account.application.service;
+
+
+import com.alcampoverde.ms_account.application.exception.AccountMovementNotFoundException;
+import com.alcampoverde.ms_account.application.exception.AccountNotFoundException;
+import com.alcampoverde.ms_account.application.exception.InsufficientBalanceException;
+import com.alcampoverde.ms_account.application.exception.InvalidMovementTypeException;
+import com.alcampoverde.ms_account.domain.model.Account;
+import com.alcampoverde.ms_account.domain.model.Movement;
+import com.alcampoverde.ms_account.domain.model.MovementReport;
+import com.alcampoverde.ms_account.domain.port.in.IAccountTransactionPort;
+import com.alcampoverde.ms_account.domain.port.out.IAccountMovementRepositoryPort;
+import com.alcampoverde.ms_account.domain.port.out.IAccountRepositoryPort;
+import com.alcampoverde.ms_account.domain.port.out.IMovementReportRepositoryPort;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+
+public class TransactionService implements IAccountTransactionPort {
+
+    private final IAccountMovementRepositoryPort movementRepositoryPort;
+    private final IAccountRepositoryPort accountRepositoryPort;
+    private final IMovementReportRepositoryPort movementReportRepositoryPort;
+
+    public TransactionService(IAccountMovementRepositoryPort movementRepositoryPort, IAccountRepositoryPort accountRepositoryPort, IMovementReportRepositoryPort movementReportRepositoryPort) {
+        this.movementRepositoryPort = movementRepositoryPort;
+        this.accountRepositoryPort = accountRepositoryPort;
+        this.movementReportRepositoryPort = movementReportRepositoryPort;
+    }
+
+    @Override
+    public Movement findById(Integer id) {
+        return movementRepositoryPort.findById(id).orElseThrow(() -> new AccountMovementNotFoundException("Movement not found with id: " + id));
+    }
+
+    @Override
+    public List<Movement> findAll() {
+        return movementRepositoryPort.findAll();
+    }
+
+
+    @Override
+    public Movement transaction(Movement movement) {
+        Account account = getAccountOrThrow(movement.getAccount().getAccountId());
+        Double updatedBalance = processMovement(account, movement);
+        updateAccountBalance(account, updatedBalance);
+        prepareMovement(movement, updatedBalance);
+        return movementRepositoryPort.transaction(movement);
+    }
+
+    @Override
+    public void cancelTransaction(Integer movementId) {
+        movementRepositoryPort.cancelTransaction(movementId);
+    }
+
+    @Override
+    public List<MovementReport> generateMovementReport(Integer accountId, LocalDate startDate, LocalDate endDate) {
+        return movementReportRepositoryPort.findByAccountIdAndDate(accountId, startDate, endDate);
+    }
+
+    private Account getAccountOrThrow(Integer accountId) {
+        return accountRepositoryPort.findAccountById(accountId).orElseThrow(() -> new AccountNotFoundException("Account not found with ID: " + accountId));
+    }
+
+    private Double processMovement(Account account, Movement movement) {
+        double currentBalance = account.getAvailableBalance();
+        double movementValue = movement.getTransactionAmount();
+
+        switch (movement.getMovementType().toUpperCase()) {
+            case "WITHDRAWAL":
+                if (movementValue > currentBalance) {
+                    throw new InsufficientBalanceException("Insufficient balance");
+                }
+                currentBalance -= movementValue;
+                movement.setAvailableBalance(-movementValue);
+                break;
+
+            case "DEPOSIT":
+                currentBalance += movementValue;
+                movement.setAvailableBalance(movementValue);
+                break;
+
+            default:
+                throw new InvalidMovementTypeException("Invalid movement type: " + movement.getMovementType());
+        }
+
+        return currentBalance;
+    }
+
+    private void updateAccountBalance(Account account, Double updatedBalance) {
+        account.setAvailableBalance(updatedBalance);
+        accountRepositoryPort.saveAccount(account);
+    }
+
+    private void prepareMovement(Movement movement, Double updatedBalance) {
+        movement.setAvailableBalance(updatedBalance);
+        movement.setDate(LocalDateTime.now());
+    }
+}

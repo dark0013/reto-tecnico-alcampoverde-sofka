@@ -1,0 +1,51 @@
+version: '3.8'
+
+volumes:
+  mysql_data-sofka:
+
+networks:
+  ret-micros-sofka:
+
+services:
+  mysql-sofka:
+    image: mysql:latest
+    container_name: mysql-sofka
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: finance_service_db
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data-sofka:/var/lib/mysql
+    networks:
+      - ret-micros-sofka
+
+  ms-customer-sofka:
+    build:
+      context: ./ms-customer
+      dockerfile: Dockerfile
+    container_name: micro1-sofka
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-sofka:3306/finance_service_db?serverTimezone=UTC
+    ports:
+      - "8085:8085"
+    networks:
+      - ret-micros-sofka
+    depends_on:
+      - mysql-sofka
+
+  ms-account-sofka:
+    build:
+      context: ./ms-account
+      dockerfile: Dockerfile
+    container_name: micro2-sofka
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-sofka:3306/finance_service_db?serverTimezone=UTC
+    ports:
+      - "8086:8086"
+    networks:
+      - ret-micros-sofka
+    depends_on:
+      - mysql-sofka
