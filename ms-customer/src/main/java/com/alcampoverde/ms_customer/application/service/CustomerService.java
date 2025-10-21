@@ -4,8 +4,12 @@ import com.alcampoverde.ms_customer.application.exception.CustomerNotFoundExcept
 import com.alcampoverde.ms_customer.domain.model.Customer;
 import com.alcampoverde.ms_customer.domain.port.in.ICustomerServicePort;
 import com.alcampoverde.ms_customer.domain.port.out.ICustomerRepositoryPort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 public class CustomerService implements ICustomerServicePort {
     private final ICustomerRepositoryPort customerRepositoryPort;
@@ -35,7 +39,7 @@ public class CustomerService implements ICustomerServicePort {
 
     @Override
     public Customer updateCustomer(Customer customer) {
-        return this.customerRepositoryPort.updateCustomer(customer);
+      return this.customerRepositoryPort.updateCustomer(customer);
     }
 
     @Override
